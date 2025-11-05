@@ -54,9 +54,6 @@ def setup_model_checkpoint(ckpt_path):
         
         # Unzip the file
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            # We extract to model_dir, which is /app/models/ldm/cin256
-            # The zip file likely contains model.ckpt at its root or in a subfolder.
-            # Extracting all to the target dir is the safest way.
             zip_ref.extractall(model_dir)
 
         print(f"Extraction complete.")
@@ -107,14 +104,17 @@ def load_target_synsets(list_file_path):
     return synsets
 
 def main(args):
-    # --- 1. Set up Model Checkpoint (NEW STEP) ---
-    # This will download the model if it's not in the mounted directory
+    # --- 1. Set up Model Checkpoint ---
     setup_model_checkpoint(args.ckpt)
 
     # --- 2. Set up GPU Device ---
-    torch.cuda.set_device(args.gpu_id)
-    device = torch.device(f"cuda:{args.gpu_id}")
-    print(f"Worker {args.gpu_id}: Running on {device}")
+    if not torch.cuda.is_available():
+        print(f"CUDA not available. Exiting.")
+        sys.exit(1)
+    
+    # This will use the single GPU assigned by docker-compose
+    device = torch.device("cuda")
+    print(f"Running on {device} (PyTorch sees: {torch.cuda.get_device_name(0)})")
 
     # --- 3. Load Model and Sampler ---
     config = OmegaConf.load(args.config) 
@@ -126,40 +126,41 @@ def main(args):
     target_synsets = load_target_synsets(args.class_list_file)
     
     target_indices = [synset_to_index[syn] for syn in target_synsets if syn in synset_to_index]
-    print(f"Worker {args.gpu_id}: Found {len(target_indices)} valid target classes.")
+    print(f"Found {len(target_indices)} valid target classes in {args.class_list_file}.")
 
-    # --- 5. Divide the Work (100 classes) ---
-    n_classes = len(target_indices)
-    classes_per_gpu = n_classes // args.total_gpus
-    remainder = n_classes % args.total_gpus
+    # --- 5. Define the Work ---
+    # Use the provided start/end indices to slice the list
+    if args.end_index > len(target_indices):
+        print(f"Warning: end_index {args.end_index} is out of bounds for {len(target_indices)} classes. Clamping.")
+        args.end_index = len(target_indices)
+        
+    indices_to_generate = target_indices[args.start_index:args.end_index]
     
-    start_index = args.gpu_id * classes_per_gpu + min(args.gpu_id, remainder)
-    end_index = start_index + classes_per_gpu + (1 if args.gpu_id < remainder else 0)
-    
-    indices_to_generate = target_indices[start_index:end_index]
-    
-    print(f"Worker {args.gpu_id}: Generating {len(indices_to_generate)} classes (Indices {start_index} to {end_index-1})")
+    print(f"Generating {len(indices_to_generate)} classes (Indices {args.start_index} to {args.end_index-1} from your list)")
 
     # --- 6. Sampling Loop ---
+    batch_size = args.batch_size
+    if batch_size > args.n_samples_per_class:
+        batch_size = args.n_samples_per_class
+        print(f"Batch size > samples. Setting batch size to {args.n_samples_per_class}")
+
     with torch.no_grad(), model.ema_scope():
         uc = model.get_learned_conditioning(
-            {model.cond_stage_key: torch.tensor(args.batch_size * [1000]).to(device)}
+            {model.cond_stage_key: torch.tensor(batch_size * [1000]).to(device)}
         )
         
-        for class_index in tqdm(indices_to_generate, desc=f"GPU {args.gpu_id}"):
+        for class_index in tqdm(indices_to_generate, desc=f"Generating Classes {args.start_index}-{args.end_index}"):
             synset_name = index_to_synset[class_index]
             save_path_class = os.path.join(args.outdir, synset_name)
             os.makedirs(save_path_class, exist_ok=True)
             
-            # print(f"Worker {args.gpu_id}: Generating {args.n_samples_per_class} images for {synset_name} (Class {class_index})")
-
-            xc = torch.tensor(args.batch_size * [class_index])
+            xc = torch.tensor(batch_size * [class_index])
             c = model.get_learned_conditioning({model.cond_stage_key: xc.to(device)})
             
-            for i in range(0, args.n_samples_per_class, args.batch_size):
+            for i in range(0, args.n_samples_per_class, batch_size):
                 samples_ddim, _ = sampler.sample(S=args.ddim_steps,
                                                  conditioning=c,
-                                                 batch_size=args.batch_size,
+                                                 batch_size=batch_size,
                                                  shape=[3, 64, 64],
                                                  verbose=False,
                                                  unconditional_guidance_scale=args.scale,
@@ -183,27 +184,25 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # --- Docker/GPU args ---
-    parser.add_argument("--gpu_id", type=int, required=True, help="ID of the GPU to use")
-    parser.add_argument("--total_gpus", type=int, default=8, help="Total number of GPUs being used")
+    
+    # --- New Required Args ---
+    parser.add_argument("--start_index", type=int, default=0, help="Start index from the IN100.txt list to process")
+    parser.add_argument("--end_index", type=int, default=100, help="End index (exclusive) from the IN100.txt list to process")
     
     # --- Path args ---
     parser.add_argument("--outdir", type=str, default="/app/outputs", help="Directory to save images")
-    parser.add_argument("--ckpt", type=str, default="models/ldm/cin256-v2/model.ckpt", help="Path to the model checkpoint")
+    parser.add_argument("--ckpt", type=str, default="/app/models/ldm/cin256/model.ckpt", help="Path to the model checkpoint")
     parser.add_argument("--config", type=str, default="configs/latent-diffusion/cin256-v2.yaml", help="Path to the model config")
     parser.add_argument("--class_list_file", type=str, default="data/IN100.txt", help="Path to IN100.txt")
     parser.add_argument("--class_map_file", type=str, default="data/imagenet_class_index.json", help="Path to imagenet_class_index.json")
 
     # --- Sampling args ---
     parser.add_argument("--n_samples_per_class", type=int, default=10, help="Number of samples to generate per class")
-    parser.add_argument("--batch_size", type=int, default=5, help="Batch size for sampling (must be <= n_samples_per_class)")
+    parser.add_argument("--batch_size", type=int, default=10, help="Batch size for sampling")
     parser.add_argument("--ddim_steps", type=int, default=250, help="Number of DDIM steps")
     parser.add_argument("--ddim_eta", type=float, default=0.0, help="DDIM eta")
     parser.add_argument("--scale", type=float, default=1.5, help="Scale for unconditional guidance")
 
     args = parser.parse_args()
-    
-    if args.batch_size > args.n_samples_per_class:
-        args.batch_size = args.n_samples_per_class
         
     main(args)

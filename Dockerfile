@@ -1,30 +1,42 @@
-# Start from a PyTorch image with CUDA
+# Start from the PyTorch image.
+# This image *already has* Python 3, pip, and PyTorch 1.12.1 + CUDA 11.3
 FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
 
 WORKDIR /app
 
-# Copy the entire latent-diffusion repo (including your new script)
+# Copy the entire latent-diffusion repo
 COPY . .
 
-# Install dependencies from the environment.yaml
-# First, install conda and system dependencies (unzip)
-RUN apt-get update && apt-get install -y wget unzip && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
-    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
-    rm ~/miniconda.sh
-ENV PATH /opt/conda/bin:$PATH
+# 1. Install system dependencies (for the script's download/unzip)
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create the environment and install dependencies
-RUN conda env create -f environment.yaml
+# Accept UID/GID from build args with defaults
+ARG USER_ID=1000
+ARG GROUP_ID=1000
 
-# Activate the env for all subsequent RUN commands
-SHELL ["conda", "run", "-n", "ldm", "/bin/bash", "-c"]
+# Create group and user matching host UID/GID
+RUN groupadd -g ${GROUP_ID} appgroup && \
+    useradd -m -u ${USER_ID} -g appgroup appuser
 
-# Install the ldm package itself
+# Switch to that user
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+# 2. Install Python dependencies using pip
+#    The base image already has torch, torchvision, and numpy.
+#    We just need the missing pieces from the environment.yaml.
+#    'taming-transformers' is installed this way per the original notebook.
+RUN pip install \
+    omegaconf \
+    einops \
+    tqdm \
+    pillow \
+    requests \
+    taming-transformers
+
+# 3. Install the ldm package itself
 RUN pip install -e .
-
-# Install taming-transformers, Pillow, and requests
-RUN pip install taming-transformers pillow requests
-
-# This is the command that will be run by docker-compose
-ENTRYPOINT ["conda", "run", "-n", "ldm", "python"]
