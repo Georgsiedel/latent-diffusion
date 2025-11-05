@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # This is a base template for all 8 services
+  base_sampler: &base
+    image: ldm-sampler-service # The image we will build
+    build: .                  # Build from the Dockerfile in this directory
+    volumes:
+      # --- YOUR NEW MOUNT (now read-write by default) ---
+      - /data/siedel/trained_models/latent-diffusion/:/app/models/ldm/cin256
+      
+      # --- Other mounts ---
+      - ./configs:/app/configs:ro
+      - ./IN100.txt:/app/IN100.txt:ro
+      - ./data/imagenet_class_index.json:/app/data/imagenet_class_index.json:ro
+      - /data/siedel/datasets/ImageNet-100-synthetic:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # Define the command arguments. We will override gpu_id for each service.
+    command: >
+      sample_conditional.py
+        --gpu_id 0
+        --total_gpus 8
+        --outdir /app/outputs
+        # --- NEW CHECKPOINT PATH ---
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt
+        --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50
+        --batch_size 10
+        --ddim_steps 200
+
+  # --- Define all 8 services ---
+  sampler-0:
+    <<: *base # Inherit from the base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0 # Assign Host GPU 0
+    command: >
+      sample_conditional.py
+        --gpu_id 0 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-1:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1 # Assign Host GPU 1
+    command: >
+      sample_conditional.py
+        --gpu_id 1 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-2:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=2
+    command: >
+      sample_conditional.py
+        --gpu_id 2 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-3:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=3
+    command: >
+      sample_conditional.py
+        --gpu_id 3 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-4:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=4
+    command: >
+      sample_conditional.py
+        --gpu_id 4 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-5:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=5
+    command: >
+      sample_conditional.py
+        --gpu_id 5 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-6:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=6
+    command: >
+      sample_conditional.py
+        --gpu_id 6 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
+
+  sampler-7:
+    <<: *base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=7
+    command: >
+      sample_conditional.py
+        --gpu_id 7 --total_gpus 8 --outdir /app/outputs
+        --ckpt /app/models/ldm/cin256/model.ckpt
+        --config configs/latent-diffusion/cin256-v2.yaml
+        --class_list_file data/IN100.txt --class_map_file data/imagenet_class_index.json
+        --n_samples_per_class 50 --batch_size 10 --ddim_steps 200
