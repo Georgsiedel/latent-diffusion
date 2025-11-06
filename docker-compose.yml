@@ -23,52 +23,45 @@ x-base-service-def: &base
     - /data/siedel/datasets/ImageNet-100-synthetic:/app/outputs
     # --- Mount the script so you can edit it live ---
     - ./sample_conditional.py:/app/sample_conditional.py:ro
-  
-  deploy:
-    resources:
-      reservations:
-        devices:
-          - driver: nvidia
-            count: 1
-            capabilities: [gpu]
+  runtime: nvidia
 
 services:
   sampler-0:
     <<: *base 
     environment:
-      - NVIDIA_VISIBLE_DEVICES=0 
+      NVIDIA_VISIBLE_DEVICES: "0"
 
   sampler-1:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=1
+      NVIDIA_VISIBLE_DEVICES: "1"
 
   sampler-2:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=2
+      NVIDIA_VISIBLE_DEVICES: "2"
 
   sampler-3:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=3
+      NVIDIA_VISIBLE_DEVICES: "3"
 
   sampler-4:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=4
+      NVIDIA_VISIBLE_DEVICES: "4"
 
   sampler-5:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=5
+      NVIDIA_VISIBLE_DEVICES: "5"
 
   sampler-6:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=6
+      NVIDIA_VISIBLE_DEVICES: "6"
 
   sampler-7:
     <<: *base
     environment:
-      - NVIDIA_VISIBLE_DEVICES=7
+      NVIDIA_VISIBLE_DEVICES: "7"
