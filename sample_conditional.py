@@ -168,6 +168,8 @@ def main(args):
         )
         
         for class_index in tqdm(indices_to_generate, desc=f"Generating Classes {args.start_index}-{args.end_index}"):
+            
+            done = False # breaking flag
             synset_name = index_to_synset[class_index]
             save_path_class = os.path.join(args.outdir, synset_name)
             os.makedirs(save_path_class, exist_ok=True)
@@ -199,6 +201,8 @@ def main(args):
                     
                     # Stop if we've generated the number of images requested
                     if current_image_count >= args.n_samples_per_class:
+                        print(f'{args.n_samples_per_class} images generated succesfully, breaking.')
+                        done = True
                         break
                         
                     # --- MODIFICATION: Set the filename index ---
@@ -206,7 +210,9 @@ def main(args):
                     img_index = start_img_index + current_image_count
 
                     #also break if we go beyond 10000 images per class (last for 4-digit index name)
-                    if img_index >= remaining_to_10k:
+                    if img_index >= 10000:
+                        print(f'{remaining_to_10k} images generated succesfully, 10k images in that class, breaking.')
+                        done = True
                         break
                         
                     img = 255. * x_sample.cpu().numpy()
@@ -215,6 +221,9 @@ def main(args):
                     
                     img_filename = f"{synset_name}_{img_index:04d}.jpg"
                     img.save(os.path.join(save_path_class, img_filename))
+
+                if done:
+                    break
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
