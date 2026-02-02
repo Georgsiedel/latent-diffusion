@@ -1,3 +1,7 @@
+## Purpose of fork
+
+- Sampling Latent Diffusion checkpoint for ImageNet-100 classes according to the added class list from here: [Contrastive Multiview Coding](https://arxiv.org/pdf/1906.05849)
+
 # Latent Diffusion Models
 [arXiv](https://arxiv.org/abs/2112.10752) | [BibTeX](#bibtex)
 
